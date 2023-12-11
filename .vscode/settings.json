@@ -1,0 +1,11 @@
+{
+    "[python]": {
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+            "source.organizeImports": true,
+        }
+    },
+    "ruff.lint.args": [
+        "--ignore=E402"
+    ]
+}
