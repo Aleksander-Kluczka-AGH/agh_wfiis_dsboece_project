@@ -4,7 +4,8 @@ from src.helper import expand_dataframe, explode_nw_data
 
 
 class CellPooler:
-    def __init__(self, raw_data):
+    def __init__(self, raw_data: pd.DataFrame):
+        raw_data = raw_data[raw_data["nw data"].apply(lambda x: len(str(x)) > 1)]
         self._points = explode_nw_data(raw_data)
         self._points = expand_dataframe(self._points)
 
@@ -78,8 +79,8 @@ class CellPooler:
             for column in signal_columns:
                 try:
                     info["signal"][column] = pd.to_numeric(info["signal"][column])
-                    if info["signal"][column] > 2147483640:
-                        info["signal"][column] = float("inf")
+                    # if info["signal"][column] > 2147483640:
+                    #     info["signal"][column] = float("inf")
                 except KeyError:
                     pass
 
