@@ -1,38 +1,46 @@
 import pandas as pd
 
 from src.helper import expand_dataframe, explode_nw_data
+import logging as log
+
+class MobileDataParser:
+    def __init__(self, raw_data: pd.DataFrame) -> None:
+        log.info("Created MobileDataParser, parsing raw data...")
+        self.raw_data = self._prune_invalid_data(raw_data)
+        self.measurement_points = self._parse_to_measurement_points(self.raw_data)
 
 
-class CellPooler:
-    def __init__(self, raw_data: pd.DataFrame):
-        raw_data = raw_data[raw_data["nw data"].apply(lambda x: len(str(x)) > 1)]
-        self._points = explode_nw_data(raw_data)
-        self._points = expand_dataframe(self._points)
+    def _prune_invalid_data(self, raw_data: pd.DataFrame) -> pd.DataFrame:
+        log.info("Pruning invalid data...")
+        pruned_data = raw_data[raw_data["nw data"].apply(lambda x: len(str(x)) > 1)]
+        return pruned_data
+
+    def _parse_to_measurement_points(self, raw_data: pd.DataFrame) -> pd.DataFrame:
+        log.info("Parsing data to measurement points...")
+        measurements = explode_nw_data(raw_data)
+        measurements = expand_dataframe(measurements)
 
         # remove rows with cells which are not lte
-        self._points = self._points[
-            self._points["plmn lte"].apply(lambda x: len(x) > 0)
+        measurements = measurements[
+            measurements["plmn lte"].apply(lambda x: len(x) > 0)
         ]
 
         # extract lte data from 'nw data' and convert str to correct types
-        self._points["lte"] = self._points["nw data"].apply(lambda x: x.lte())
-        self._points["lte"] = self._points["lte"].apply(self._to_dict)
-        self._points["lte"] = self._points["lte"].apply(self._convert_types)
-        self._points["time"] = self._points["time"].apply(pd.to_datetime)
-        self._points[["longitude", "latitude"]] = self._points[
+        measurements["lte"] = measurements["nw data"].apply(lambda x: x.lte())
+        measurements["lte"] = measurements["lte"].apply(self._to_dict)
+        measurements["lte"] = measurements["lte"].apply(self._convert_types)
+        measurements["time"] = measurements["time"].apply(pd.to_datetime)
+        measurements[["longitude", "latitude"]] = measurements[
             ["longitude", "latitude"]
         ].apply(pd.to_numeric)
 
         # remove unnecessary columns
-        self._points.drop("nw data", axis=1, inplace=True)
-        self._points.drop("plmn wcdma", axis=1, inplace=True)
+        measurements.drop("nw data", axis=1, inplace=True)
+        measurements.drop("plmn wcdma", axis=1, inplace=True)
 
-        # rename 'plmn lte' to 'bts_cell_id'
-        self._points.rename(columns={"plmn lte": "bts_cell_id"}, inplace=True)
-
-    @property
-    def points(self):
-        return self._points
+        # rename 'plmn lte' to 'mcc_mnc'
+        measurements.rename(columns={"plmn lte": "mcc-mnc"}, inplace=True)
+        return measurements
 
     def _to_dict(self, lines) -> list[dict[str, str]]:
         def _convert_to_dict(raw_cell_info: str) -> dict[str, str]:
@@ -65,6 +73,9 @@ class CellPooler:
             "level",
             "parametersUseForLevel",
             "cqiTableIndex",
+            "miuiLevel",
+            "mOptimizedLevel",
+            "parametersUseForLevel"
         ]
         identity_columns = [
             "mCi",
@@ -74,14 +85,26 @@ class CellPooler:
             "mBandwidth",
             "mMcc",
             "mMnc",
+            # other convention
+            "pci",
+            "tac",
+            "earfcn",
+            "bw",
+            "rsrp",
+            "rsrq",
+            "rssi",
+            "dbm",
+            "ta"
         ]
         for info in cell_infos:
             for column in signal_columns:
                 try:
-                    info["signal"][column] = pd.to_numeric(info["signal"][column])
+                    info["signal"][column] = pd.to_numeric(info["signal"][column], errors="coerce", downcast="integer")
                     # if info["signal"][column] > 2147483640:
                     #     info["signal"][column] = float("inf")
                 except KeyError:
+                    pass
+                except:
                     pass
 
             for column in identity_columns:
@@ -91,5 +114,7 @@ class CellPooler:
                     pass
                 except ValueError:
                     info["identity"][column] = None
+                except:
+                    pass
 
         return cell_infos
