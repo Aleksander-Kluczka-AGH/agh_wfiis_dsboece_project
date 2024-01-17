@@ -14,13 +14,25 @@ class MobileDataParser:
     def get_measurement_points(self) -> pd.DataFrame:
         return self._measurement_points
 
-    def get_event_points(
-        self,
-    ) -> pd.DataFrame:
+    def get_event_points(self, thresholds: dict[str, float] = {}) -> pd.DataFrame:
         # params to detect events
-        rsrp_th = [-140, -44]
-        rsrq_th = [-19.5, -3]
-        offset = [-15, 15]
+        rsrp_range = [-140, -44]
+        rsrq_range = [-19.5, -3]
+        offset_range = [-15, 15]
+
+        RSRSP_TH: float = thresholds.get("rsrp", rsrp_range[0])
+        RSRQ_TH: float = thresholds.get("rsrq", rsrq_range[0])
+        OFFSET: float = thresholds.get("offset", offset_range[1])
+
+        assert (
+            rsrp_range[0] <= RSRSP_TH <= rsrp_range[1]
+        ), f"rsrp threshold {RSRSP_TH} is out of range {rsrp_range}"
+        assert (
+            rsrq_range[0] <= RSRQ_TH <= rsrq_range[1]
+        ), f"rsrq threshold {RSRQ_TH} is out of range {rsrq_range}"
+        assert (
+            offset_range[0] <= OFFSET <= offset_range[1]
+        ), f"offset {OFFSET} is out of range {offset_range}"
 
         events_df = []
         size = self._measurement_points.shape[0]
@@ -51,14 +63,14 @@ class MobileDataParser:
                 pscell_rsrq = prev_scell["signal"]["rsrq"]
 
                 def is_a1_event():
-                    return (
-                        (scell_rsrp > rsrp_th[0]) and (pscell_rsrp < rsrp_th[0])
-                    ) or ((scell_rsrq > rsrq_th[0]) and (pscell_rsrq < rsrq_th[0]))
+                    return ((scell_rsrp > RSRSP_TH) and (pscell_rsrp < RSRSP_TH)) or (
+                        (scell_rsrq > RSRQ_TH) and (pscell_rsrq < RSRQ_TH)
+                    )
 
                 def is_a2_event():
-                    return (
-                        (scell_rsrp < rsrp_th[0]) and (pscell_rsrp > rsrp_th[0])
-                    ) or ((scell_rsrq < rsrq_th[0]) and (pscell_rsrq > rsrq_th[0]))
+                    return ((scell_rsrp < RSRSP_TH) and (pscell_rsrp > RSRSP_TH)) or (
+                        (scell_rsrq < RSRQ_TH) and (pscell_rsrq > RSRQ_TH)
+                    )
 
                 events_detected: list[str] = []
                 if is_a1_event():
@@ -75,17 +87,17 @@ class MobileDataParser:
                     ncell_rsrq = ncell["signal"]["rsrq"]
 
                     def is_a3_event():
-                        return (ncell_rsrp >= (scell_rsrp + offset[1])) or (
-                            ncell_rsrq >= (scell_rsrq + offset[1])
+                        return (ncell_rsrp >= (scell_rsrp + OFFSET)) or (
+                            ncell_rsrq >= (scell_rsrq + OFFSET)
                         )
 
                     def is_a4_event():
-                        return (ncell_rsrp >= rsrp_th[0]) or (ncell_rsrq >= rsrq_th[0])
+                        return (ncell_rsrp >= RSRSP_TH) or (ncell_rsrq >= RSRQ_TH)
 
                     def is_a5_event():
                         return (
-                            (scell_rsrp < rsrp_th[0]) and (ncell_rsrp > rsrp_th[0])
-                        ) or ((scell_rsrq < rsrq_th[0]) and (ncell_rsrq > rsrq_th[0]))
+                            (scell_rsrp < RSRSP_TH) and (ncell_rsrp > RSRSP_TH)
+                        ) or ((scell_rsrq < RSRQ_TH) and (ncell_rsrq > RSRQ_TH))
 
                     if is_a3_event():
                         events_detected.append("A3")
