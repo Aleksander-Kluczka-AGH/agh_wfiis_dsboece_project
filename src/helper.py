@@ -174,24 +174,11 @@ def get_plmn(cell: dict):
 
 def expand_dataframe(df: pd.DataFrame):
     df["pci"] = df["nw data"].apply(
-        lambda x: [
-            int(p) for p in get_param(x.get_attached_lte(), "mPci") if p is not None
-        ]
-    )
-    # hack to adjust for pci instead of mPci
-    sum = 0
-
-    def increment_sum(sum, x):
-        sum += len(x)
-
-    df["pci"].apply(lambda x: increment_sum(sum, x))
-    if sum == 0:
-        df["pci"] = df["nw data"].apply(
-            lambda x: [
-                int(p) for p in get_param(x.get_attached_lte(), "pci") if p is not None
-            ]
+        lambda x: (
+            [int(p) for p in get_param(x.get_attached_lte(), "mPci") if p is not None]
+            + [int(p) for p in get_param(x.get_attached_lte(), "pci") if p is not None]
         )
-    # end of hack
+    )
 
     df["plmn lte"] = df["nw data"].apply(
         lambda x: set([get_plmn(cell) for cell in x.get_attached_lte()])
